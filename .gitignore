@@ -143,4 +143,11 @@ vite.config.ts.timestamp-*
 .vite/
 
 .idea
+
+# Rust
 *target
+
+# SQLite
+*.db
+*.db-wal
+*.db-shm
