@@ -2,18 +2,6 @@ CREATE TABLE
     IF NOT EXISTS categories (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL UNIQUE,
-        created_at TEXT NOT NULL DEFAULT (datetime ('now')),
-        updated_at TEXT NOT NULL DEFAULT (datetime ('now'))
+        created_at TEXT NOT NULL DEFAULT (strftime ('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        updated_at TEXT NOT NULL DEFAULT (strftime ('%Y-%m-%dT%H:%M:%fZ', 'now'))
     );
-
-INSERT
-OR IGNORE INTO categories (id, name)
-VALUES
-    ('zomato', 'Zomato'),
-    ('swiggy', 'Swiggy'),
-    ('hit_canteen', 'HIT Canteen'),
-    ('transport', 'Transport'),
-    ('street_food', 'Street Food'),
-    ('salary', 'Salary'),
-    ('pocket_money', 'Pocket Money'),
-    ('youtube', 'Youtube');

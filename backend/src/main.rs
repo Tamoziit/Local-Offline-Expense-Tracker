@@ -1,8 +1,11 @@
 mod config;
 mod db;
+mod dtos;
 mod errors;
 mod handlers;
+mod models;
 mod routes;
+mod utils;
 
 use axum::http::{
     Method,
