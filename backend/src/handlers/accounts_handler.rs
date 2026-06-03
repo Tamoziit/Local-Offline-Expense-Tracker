@@ -1,0 +1,61 @@
+use std::sync::Arc;
+
+use axum::{Extension, Json, Router, http::StatusCode, response::IntoResponse, routing::post};
+use validator::Validate;
+
+use crate::{
+    AppState,
+    dtos::account_dtos::AccountCreationDto,
+    errors::{AppJson, ErrorMessage, HttpError},
+    models::account_model::AccountType,
+    services::account_service::AccountExt,
+};
+
+pub fn routes() -> Router {
+    Router::new().route("/create-account", post(create_account))
+}
+
+pub async fn create_account(
+    Extension(app_state): Extension<Arc<AppState>>,
+    AppJson(body): AppJson<AccountCreationDto>,
+) -> Result<impl IntoResponse, HttpError> {
+    body.validate()
+        .map_err(|e| HttpError::bad_request(e.to_string()))?;
+
+    if body.account_type == AccountType::Personal {
+        let existing_account = app_state
+            .db_client
+            .get_account_by_type(&body.account_type)
+            .await
+            .map_err(|e| HttpError::server_error(e.to_string()))?;
+
+        if existing_account.is_some() {
+            // if there is already a personal acc
+            return Err(HttpError::bad_request(
+                ErrorMessage::PersonalAccountAlreadyExists.to_string(),
+            ));
+        }
+    }
+
+    let result = app_state
+        .db_client
+        .create_account(&body.name, &body.account_type)
+        .await;
+
+    match result {
+        Ok(Some(account)) => Ok((StatusCode::CREATED, Json(account))),
+        Ok(None) => Err(HttpError::server_error(
+            "Account could not be created".to_string(),
+        )),
+        Err(sqlx::Error::Database(db_err)) => {
+            if db_err.is_unique_violation() {
+                Err(HttpError::unique_constraint_violated(
+                    ErrorMessage::AccountAlreadyExists.to_string(),
+                ))
+            } else {
+                Err(HttpError::server_error(db_err.to_string()))
+            }
+        }
+        Err(e) => Err(HttpError::server_error(e.to_string())),
+    }
+}

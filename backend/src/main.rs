@@ -6,6 +6,7 @@ mod handlers;
 mod models;
 mod routes;
 mod utils;
+mod services;
 
 use axum::http::{
     Method,
@@ -38,10 +39,11 @@ async fn main() -> anyhow::Result<()> {
     // Connectting to DB
     let db_options = SqliteConnectOptions::from_str(&config.database_url)?
         .create_if_missing(true)
-        .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal);
+        .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal)
+        .busy_timeout(std::time::Duration::from_secs(5));
 
     let pool = SqlitePoolOptions::new()
-        .max_connections(10)
+        .max_connections(1)
         .connect_with(db_options)
         .await?;
 

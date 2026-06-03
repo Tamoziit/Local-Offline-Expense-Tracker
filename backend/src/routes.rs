@@ -3,10 +3,15 @@ use tower_http::trace::TraceLayer;
 
 use axum::{Extension, Router};
 
-use crate::{AppState, handlers::root_handler};
+use crate::{
+    AppState,
+    handlers::{accounts_handler, root_handler},
+};
 
 fn api_routes() -> Router {
-    Router::new().merge(root_handler::routes())
+    Router::new()
+        .merge(root_handler::routes())
+        .nest("/accounts", accounts_handler::routes())
 }
 
 pub fn create_router(app_state: Arc<AppState>) -> Router {

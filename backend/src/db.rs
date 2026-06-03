@@ -2,7 +2,7 @@ use sqlx::{Pool, Sqlite};
 
 #[derive(Debug, Clone)]
 pub struct DBClient {
-    pool: Pool<Sqlite>,
+    pub pool: Pool<Sqlite>,
 }
 
 impl DBClient {

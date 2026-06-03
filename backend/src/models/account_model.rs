@@ -2,6 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, Serialize, Clone, Copy, sqlx::Type, Eq, PartialEq)]
+#[serde(rename_all = "lowercase")]
 #[sqlx(rename_all = "lowercase")]
 pub enum AccountType {
     Personal,
