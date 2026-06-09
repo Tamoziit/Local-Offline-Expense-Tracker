@@ -1,7 +1,8 @@
 use crate::{
     db::DBClient,
     dtos::account_dtos::{AccountSummary, ExternalAccount, NewAccountDto, PersonalAccount},
-    models::account_model::{Account, AccountType},
+    models::account_model::AccountType,
+    utils::get_id::get_id,
 };
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
@@ -41,7 +42,7 @@ impl AccountExt for DBClient {
                     updated_at
                 "#,
         )
-        .bind(uuid::Uuid::new_v4())
+        .bind(get_id())
         .bind(name)
         .bind(account_type)
         .fetch_one(&self.pool)

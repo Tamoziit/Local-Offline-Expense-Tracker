@@ -26,6 +26,7 @@ pub enum ErrorMessage {
     ResourceNotFound(String),
     AccountAlreadyExists,
     PersonalAccountAlreadyExists,
+    CategoryAlreadyExists,
 }
 
 impl fmt::Display for ErrorMessage {
@@ -42,6 +43,9 @@ impl fmt::Display for ErrorMessage {
             }
             ErrorMessage::PersonalAccountAlreadyExists => {
                 write!(f, "A Personal Account already exists on this device")
+            }
+            ErrorMessage::CategoryAlreadyExists => {
+                write!(f, "This Category already exists")
             }
         }
     }

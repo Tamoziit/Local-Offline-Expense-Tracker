@@ -5,13 +5,14 @@ use axum::{Extension, Router};
 
 use crate::{
     AppState,
-    handlers::{accounts_handler, root_handler},
+    handlers::{accounts_handler, category_handler, root_handler},
 };
 
 fn api_routes() -> Router {
     Router::new()
         .merge(root_handler::routes())
         .nest("/accounts", accounts_handler::routes())
+        .nest("/categories", category_handler::routes())
 }
 
 pub fn create_router(app_state: Arc<AppState>) -> Router {
