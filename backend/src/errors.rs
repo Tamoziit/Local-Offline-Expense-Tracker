@@ -23,9 +23,9 @@ impl fmt::Display for ErrorResponse {
 #[derive(Debug, PartialEq)]
 pub enum ErrorMessage {
     ServerError,
-    NotFound(String),
+    ResourceNotFound(String),
     AccountAlreadyExists,
-    PersonalAccountAlreadyExists
+    PersonalAccountAlreadyExists,
 }
 
 impl fmt::Display for ErrorMessage {
@@ -34,7 +34,7 @@ impl fmt::Display for ErrorMessage {
             ErrorMessage::ServerError => {
                 write!(f, "Server Error. Please try again later")
             }
-            ErrorMessage::NotFound(resource) => {
+            ErrorMessage::ResourceNotFound(resource) => {
                 write!(f, "{} not found", resource)
             }
             ErrorMessage::AccountAlreadyExists => {
@@ -79,6 +79,13 @@ impl HttpError {
         HttpError {
             message: message.into(),
             status: StatusCode::CONFLICT,
+        }
+    }
+
+    pub fn resource_not_found(message: impl Into<String>) -> Self {
+        HttpError {
+            message: message.into(),
+            status: StatusCode::NOT_FOUND,
         }
     }
 

@@ -28,3 +28,28 @@ pub struct AccountSummary {
     pub name: String,
     pub account_type: AccountType,
 }
+
+#[derive(Debug, Validate, Clone, Serialize, Deserialize, FromRow)]
+pub struct PersonalAccount {
+    pub id: Uuid,
+    pub name: String,
+    pub account_type: AccountType,
+    pub balance: f64,
+    #[serde(rename = "createdAt")]
+    pub created_at: DateTime<Utc>,
+    #[serde(rename = "updatedAt")]
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Validate, Clone, Serialize, Deserialize, FromRow)]
+pub struct ExternalAccount {
+    pub id: Uuid,
+    pub name: String,
+    pub account_type: AccountType,
+    pub to_receive: f64,
+    pub to_give: f64,
+    #[serde(rename = "createdAt")]
+    pub created_at: DateTime<Utc>,
+    #[serde(rename = "updatedAt")]
+    pub updated_at: DateTime<Utc>,
+}

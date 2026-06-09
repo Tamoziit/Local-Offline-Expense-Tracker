@@ -1,6 +1,11 @@
 use std::sync::Arc;
 
-use axum::{Extension, Json, Router, http::StatusCode, response::IntoResponse, routing::post};
+use axum::{
+    Extension, Json, Router,
+    http::StatusCode,
+    response::IntoResponse,
+    routing::{get, post},
+};
 use validator::Validate;
 
 use crate::{
@@ -12,7 +17,10 @@ use crate::{
 };
 
 pub fn routes() -> Router {
-    Router::new().route("/create-account", post(create_account))
+    Router::new()
+        .route("/create-account", post(create_account))
+        .route("/my-account", get(get_my_personal_acc))
+        .route("/external-accounts", get(get_external_acc))
 }
 
 pub async fn create_account(
@@ -58,4 +66,33 @@ pub async fn create_account(
         }
         Err(e) => Err(HttpError::server_error(e.to_string())),
     }
+}
+
+pub async fn get_my_personal_acc(
+    Extension(app_state): Extension<Arc<AppState>>,
+) -> Result<impl IntoResponse, HttpError> {
+    let my_account = app_state
+        .db_client
+        .get_my_personal_acc()
+        .await
+        .map_err(|e| HttpError::server_error(e.to_string()))?;
+
+    match my_account {
+        Some(account) => Ok((StatusCode::OK, Json(account))),
+        None => Err(HttpError::resource_not_found(
+            ErrorMessage::ResourceNotFound("Personal Account".to_string()).to_string(),
+        )),
+    }
+}
+
+pub async fn get_external_acc(
+    Extension(app_state): Extension<Arc<AppState>>,
+) -> Result<impl IntoResponse, HttpError> {
+    let external_accounts = app_state
+        .db_client
+        .get_external_acc()
+        .await
+        .map_err(|e| HttpError::server_error(e.to_string()))?;
+
+    Ok(Json(external_accounts))
 }
