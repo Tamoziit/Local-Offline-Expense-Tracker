@@ -13,6 +13,9 @@ CREATE TABLE
         to_account_id TEXT REFERENCES accounts (id) ON DELETE RESTRICT,
         amount REAL NOT NULL CHECK (amount > 0),
         transaction_date TEXT NOT NULL DEFAULT (date ('now')),
+        transaction_status TEXT NOT NULL CHECK (
+            transaction_status IN ('pending', 'paid')
+        ),
         created_at TEXT NOT NULL DEFAULT (strftime ('%Y-%m-%dT%H:%M:%fZ', 'now')),
         updated_at TEXT NOT NULL DEFAULT (strftime ('%Y-%m-%dT%H:%M:%fZ', 'now'))
     );
@@ -28,5 +31,7 @@ CREATE INDEX idx_transactions_recurring ON transactions (is_recurring);
 CREATE INDEX idx_transactions_mode ON transactions (transaction_mode);
 
 CREATE INDEX idx_transactions_from_account ON transactions (from_account_id);
+
+CREATE INDEX idx_transaction_status ON transactions (transaction_status);
 
 CREATE INDEX idx_transactions_to_account ON transactions (to_account_id);

@@ -1,10 +1,11 @@
 use crate::{
     db::DBClient,
     dtos::account_dtos::{AccountSummary, ExternalAccount, NewAccountDto, PersonalAccount},
-    models::account_model::AccountType,
+    models::{account_model::AccountType, transaction_model::TransactionStatus},
     utils::get_id::get_id,
 };
 use chrono::{DateTime, Utc};
+use sqlx::{Sqlite, Transaction};
 use uuid::Uuid;
 
 pub trait AccountExt {
@@ -22,6 +23,23 @@ pub trait AccountExt {
     async fn get_my_personal_acc(&self) -> Result<Option<PersonalAccount>, sqlx::Error>;
 
     async fn get_external_acc(&self) -> Result<Vec<ExternalAccount>, sqlx::Error>;
+
+    async fn update_personal_balance(
+        tx: &mut Transaction<'_, Sqlite>,
+        personal_id: Uuid,
+        from_account_id: Option<Uuid>,
+        to_account_id: Option<Uuid>,
+        amount: f64,
+    ) -> Result<(), sqlx::Error>;
+
+    async fn update_external_balance(
+        tx: &mut Transaction<'_, Sqlite>,
+        transaction_status: TransactionStatus,
+        from_account_id: Option<Uuid>,
+        to_account_id: Option<Uuid>,
+        personal_id: Uuid,
+        amount: f64,
+    ) -> Result<(), sqlx::Error>;
 }
 
 impl AccountExt for DBClient {
@@ -99,5 +117,94 @@ impl AccountExt for DBClient {
         .await?;
 
         Ok(accounts)
+    }
+
+    async fn update_personal_balance(
+        tx: &mut Transaction<'_, Sqlite>,
+        personal_id: Uuid,
+        from_account_id: Option<Uuid>,
+        to_account_id: Option<Uuid>,
+        amount: f64,
+    ) -> Result<(), sqlx::Error> {
+        if from_account_id == Some(personal_id) {
+            sqlx::query(
+                r#"
+                UPDATE accounts
+                SET
+                    balance = balance - ?,
+                    updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                WHERE id = ?
+                "#,
+            )
+            .bind(amount)
+            .bind(personal_id)
+            .execute(&mut **tx)
+            .await?;
+        } else if to_account_id == Some(personal_id) {
+            sqlx::query(
+                r#"
+                UPDATE accounts
+                SET
+                    balance = balance + ?,
+                    updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                WHERE id = ?
+                "#,
+            )
+            .bind(amount)
+            .bind(personal_id)
+            .execute(&mut **tx)
+            .await?;
+        }
+
+        Ok(())
+    }
+
+    async fn update_external_balance(
+        tx: &mut Transaction<'_, Sqlite>,
+        transaction_status: TransactionStatus,
+        from_account_id: Option<Uuid>,
+        to_account_id: Option<Uuid>,
+        personal_id: Uuid,
+        amount: f64,
+    ) -> Result<(), sqlx::Error> {
+        if transaction_status != TransactionStatus::Pending {
+            return Ok(());
+        }
+
+        if let Some(ext_id) = from_account_id.filter(|&id| id != personal_id) {
+            sqlx::query(
+                r#"
+                UPDATE accounts
+                SET
+                    to_receive = to_receive + ?,
+                    updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                WHERE
+                    id = ?
+                    AND account_type = 'external'
+                "#,
+            )
+            .bind(amount)
+            .bind(ext_id)
+            .execute(&mut **tx)
+            .await?;
+        } else if let Some(ext_id) = to_account_id.filter(|&id| id != personal_id) {
+            sqlx::query(
+                r#"
+                UPDATE accounts
+                SET
+                    to_give = to_give + ?,
+                    updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+                WHERE
+                    id = ?
+                    AND account_type = 'external'
+                "#,
+            )
+            .bind(amount)
+            .bind(ext_id)
+            .execute(&mut **tx)
+            .await?;
+        }
+
+        Ok(())
     }
 }
