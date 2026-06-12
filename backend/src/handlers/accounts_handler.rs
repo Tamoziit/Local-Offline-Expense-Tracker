@@ -12,7 +12,6 @@ use crate::{
     AppState,
     dtos::account_dtos::AccountCreationDto,
     errors::{AppJson, ErrorMessage, HttpError},
-    models::account_model::AccountType,
     services::account_service::AccountExt,
 };
 
@@ -30,42 +29,13 @@ pub async fn create_account(
     body.validate()
         .map_err(|e| HttpError::bad_request(e.to_string()))?;
 
-    if body.account_type == AccountType::Personal {
-        let existing_account = app_state
-            .db_client
-            .get_account_by_type(&body.account_type)
-            .await
-            .map_err(|e| HttpError::server_error(e.to_string()))?;
-
-        if existing_account.is_some() {
-            // if there is already a personal acc
-            return Err(HttpError::bad_request(
-                ErrorMessage::PersonalAccountAlreadyExists.to_string(),
-            ));
-        }
-    }
-
-    let result = app_state
+    let account = app_state
         .db_client
         .create_account(&body.name, &body.account_type)
-        .await;
+        .await
+        .map_err(HttpError::from)?;
 
-    match result {
-        Ok(Some(account)) => Ok((StatusCode::CREATED, Json(account))),
-        Ok(None) => Err(HttpError::server_error(
-            "Account could not be created".to_string(),
-        )),
-        Err(sqlx::Error::Database(db_err)) => {
-            if db_err.is_unique_violation() {
-                Err(HttpError::unique_constraint_violated(
-                    ErrorMessage::AccountAlreadyExists.to_string(),
-                ))
-            } else {
-                Err(HttpError::server_error(db_err.to_string()))
-            }
-        }
-        Err(e) => Err(HttpError::server_error(e.to_string())),
-    }
+    Ok((StatusCode::CREATED, Json(account)))
 }
 
 pub async fn get_my_personal_acc(
@@ -75,7 +45,7 @@ pub async fn get_my_personal_acc(
         .db_client
         .get_my_personal_acc()
         .await
-        .map_err(|e| HttpError::server_error(e.to_string()))?;
+        .map_err(HttpError::from)?;
 
     match my_account {
         Some(account) => Ok((StatusCode::OK, Json(account))),
@@ -92,7 +62,7 @@ pub async fn get_external_acc(
         .db_client
         .get_external_acc()
         .await
-        .map_err(|e| HttpError::server_error(e.to_string()))?;
+        .map_err(HttpError::from)?;
 
     Ok(Json(external_accounts))
 }

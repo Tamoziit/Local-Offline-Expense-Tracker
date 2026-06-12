@@ -143,3 +143,45 @@ where
         }
     }
 }
+
+#[derive(Debug)]
+pub enum ServiceError {
+    NotFound { resource: String, id: String },
+    Conflict(String),
+    Db(sqlx::Error),
+}
+
+impl fmt::Display for ServiceError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ServiceError::NotFound { resource, id } => {
+                write!(f, "{} with id '{}' not found", resource, id)
+            }
+            ServiceError::Conflict(msg) => write!(f, "{}", msg),
+            ServiceError::Db(e) => write!(f, "Database error: {}", e),
+        }
+    }
+}
+
+impl std::error::Error for ServiceError {}
+
+// `?` inside any service auto-converts sqlx errors.
+impl From<sqlx::Error> for ServiceError {
+    fn from(e: sqlx::Error) -> Self {
+        ServiceError::Db(e)
+    }
+}
+
+// The ONLY place where domain errors gain HTTP semantics.
+// Handlers call `.map_err(HttpError::from)?` and stay HTTP-agnostic.
+impl From<ServiceError> for HttpError {
+    fn from(e: ServiceError) -> Self {
+        match e {
+            ServiceError::NotFound { resource, id } => {
+                HttpError::resource_not_found(format!("{} with id '{}' not found", resource, id))
+            }
+            ServiceError::Conflict(msg) => HttpError::unique_constraint_violated(msg),
+            ServiceError::Db(db_err) => HttpError::server_error(db_err.to_string()),
+        }
+    }
+}

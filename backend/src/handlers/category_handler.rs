@@ -11,7 +11,7 @@ use validator::Validate;
 use crate::{
     AppState,
     dtos::category_dtos::CategoryCreationDto,
-    errors::{AppJson, ErrorMessage, HttpError},
+    errors::{AppJson, HttpError},
     services::category_service::CategoryExt,
 };
 
@@ -28,24 +28,13 @@ pub async fn add_category(
     body.validate()
         .map_err(|e| HttpError::bad_request(e.to_string()))?;
 
-    let response = app_state.db_client.create_category(&body.name).await;
+    let category = app_state
+        .db_client
+        .create_category(&body.name)
+        .await
+        .map_err(HttpError::from)?;
 
-    match response {
-        Ok(Some(category)) => Ok((StatusCode::CREATED, Json(category))),
-        Ok(None) => Err(HttpError::server_error(
-            "Account could not be created".to_string(),
-        )),
-        Err(sqlx::Error::Database(db_err)) => {
-            if db_err.is_unique_violation() {
-                Err(HttpError::unique_constraint_violated(
-                    ErrorMessage::CategoryAlreadyExists.to_string(),
-                ))
-            } else {
-                Err(HttpError::server_error(db_err.to_string()))
-            }
-        }
-        Err(e) => Err(HttpError::server_error(e.to_string())),
-    }
+    Ok((StatusCode::CREATED, Json(category)))
 }
 
 pub async fn get_all_categories(
@@ -55,7 +44,7 @@ pub async fn get_all_categories(
         .db_client
         .get_all_categories()
         .await
-        .map_err(|e| HttpError::server_error(e.to_string()))?;
+        .map_err(HttpError::from)?;
 
     Ok(Json(categories))
 }

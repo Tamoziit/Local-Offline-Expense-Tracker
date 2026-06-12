@@ -1,10 +1,10 @@
 use crate::{
     db::DBClient,
     dtos::account_dtos::{AccountSummary, ExternalAccount, NewAccountDto, PersonalAccount},
+    errors::{ErrorMessage, ServiceError},
     models::{account_model::AccountType, transaction_model::TransactionStatus},
     utils::get_id::get_id,
 };
-use chrono::{DateTime, Utc};
 use sqlx::{Sqlite, Transaction};
 use uuid::Uuid;
 
@@ -13,24 +13,27 @@ pub trait AccountExt {
         &self,
         name: &String,
         account_type: &AccountType,
-    ) -> Result<Option<NewAccountDto>, sqlx::Error>;
+    ) -> Result<NewAccountDto, ServiceError>;
 
     async fn get_account_by_type(
         &self,
         account_type: &AccountType,
-    ) -> Result<Option<AccountSummary>, sqlx::Error>;
+    ) -> Result<Option<AccountSummary>, ServiceError>;
 
-    async fn get_my_personal_acc(&self) -> Result<Option<PersonalAccount>, sqlx::Error>;
+    async fn get_my_personal_acc(&self) -> Result<Option<PersonalAccount>, ServiceError>;
 
-    async fn get_external_acc(&self) -> Result<Vec<ExternalAccount>, sqlx::Error>;
+    async fn get_external_acc(&self) -> Result<Vec<ExternalAccount>, ServiceError>;
+
+    async fn account_exists_by_id(&self, id: Uuid) -> Result<bool, ServiceError>;
 
     async fn update_personal_balance(
         tx: &mut Transaction<'_, Sqlite>,
+        transaction_status: TransactionStatus,
         personal_id: Uuid,
         from_account_id: Option<Uuid>,
         to_account_id: Option<Uuid>,
         amount: f64,
-    ) -> Result<(), sqlx::Error>;
+    ) -> Result<(), ServiceError>;
 
     async fn update_external_balance(
         tx: &mut Transaction<'_, Sqlite>,
@@ -39,7 +42,7 @@ pub trait AccountExt {
         to_account_id: Option<Uuid>,
         personal_id: Uuid,
         amount: f64,
-    ) -> Result<(), sqlx::Error>;
+    ) -> Result<(), ServiceError>;
 }
 
 impl AccountExt for DBClient {
@@ -47,7 +50,16 @@ impl AccountExt for DBClient {
         &self,
         name: &String,
         account_type: &AccountType,
-    ) -> Result<Option<NewAccountDto>, sqlx::Error> {
+    ) -> Result<NewAccountDto, ServiceError> {
+        if *account_type == AccountType::Personal {
+            let existing = self.get_account_by_type(account_type).await?;
+            if existing.is_some() {
+                return Err(ServiceError::Conflict(
+                    ErrorMessage::PersonalAccountAlreadyExists.to_string(),
+                ));
+            }
+        }
+
         let new_account = sqlx::query_as::<_, NewAccountDto>(
             r#"
                 INSERT INTO accounts (id, name, account_type)
@@ -64,15 +76,21 @@ impl AccountExt for DBClient {
         .bind(name)
         .bind(account_type)
         .fetch_one(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| match e {
+            sqlx::Error::Database(ref db_err) if db_err.is_unique_violation() => {
+                ServiceError::Conflict(ErrorMessage::AccountAlreadyExists.to_string())
+            }
+            other => ServiceError::Db(other),
+        })?;
 
-        Ok(Some(new_account))
+        Ok(new_account)
     }
 
     async fn get_account_by_type(
         &self,
         account_type: &AccountType,
-    ) -> Result<Option<AccountSummary>, sqlx::Error> {
+    ) -> Result<Option<AccountSummary>, ServiceError> {
         let account = sqlx::query_as::<_, AccountSummary>(
             r#"
                 SELECT id, name, account_type, balance
@@ -88,7 +106,7 @@ impl AccountExt for DBClient {
         Ok(account)
     }
 
-    async fn get_my_personal_acc(&self) -> Result<Option<PersonalAccount>, sqlx::Error> {
+    async fn get_my_personal_acc(&self) -> Result<Option<PersonalAccount>, ServiceError> {
         let account = sqlx::query_as::<_, PersonalAccount>(
             r#"
             SELECT id, name, account_type, balance, created_at, updated_at
@@ -104,7 +122,7 @@ impl AccountExt for DBClient {
         Ok(account)
     }
 
-    async fn get_external_acc(&self) -> Result<Vec<ExternalAccount>, sqlx::Error> {
+    async fn get_external_acc(&self) -> Result<Vec<ExternalAccount>, ServiceError> {
         let accounts = sqlx::query_as::<_, ExternalAccount>(
             r#"
             SELECT id, name, account_type, to_receive, to_give, created_at, updated_at
@@ -119,13 +137,28 @@ impl AccountExt for DBClient {
         Ok(accounts)
     }
 
+    async fn account_exists_by_id(&self, id: Uuid) -> Result<bool, ServiceError> {
+        let exists: bool =
+            sqlx::query_scalar(r#"SELECT EXISTS(SELECT 1 FROM accounts WHERE id = $1)"#)
+                .bind(id)
+                .fetch_one(&self.pool)
+                .await?;
+
+        Ok(exists)
+    }
+
     async fn update_personal_balance(
         tx: &mut Transaction<'_, Sqlite>,
+        transaction_status: TransactionStatus,
         personal_id: Uuid,
         from_account_id: Option<Uuid>,
         to_account_id: Option<Uuid>,
         amount: f64,
-    ) -> Result<(), sqlx::Error> {
+    ) -> Result<(), ServiceError> {
+        if transaction_status == TransactionStatus::Pending {
+            return Ok(());
+        }
+
         if from_account_id == Some(personal_id) {
             sqlx::query(
                 r#"
@@ -166,7 +199,7 @@ impl AccountExt for DBClient {
         to_account_id: Option<Uuid>,
         personal_id: Uuid,
         amount: f64,
-    ) -> Result<(), sqlx::Error> {
+    ) -> Result<(), ServiceError> {
         if transaction_status != TransactionStatus::Pending {
             return Ok(());
         }

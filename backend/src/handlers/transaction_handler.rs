@@ -21,7 +21,7 @@ pub async fn record_transaction(
     body.validate()
         .map_err(|e| HttpError::bad_request(e.to_string()))?;
 
-    let response = app_state
+    let transaction = app_state
         .db_client
         .create_transaction(
             &body.title,
@@ -36,13 +36,8 @@ pub async fn record_transaction(
             body.transaction_date,
             body.transaction_status,
         )
-        .await;
+        .await
+        .map_err(HttpError::from)?;
 
-    match response {
-        Ok(Some(transaction)) => Ok((StatusCode::CREATED, Json(transaction))),
-        Ok(None) => Err(HttpError::server_error(
-            "Transaction could not be created".to_string(),
-        )),
-        Err(e) => Err(HttpError::server_error(e.to_string())),
-    }
+    Ok((StatusCode::CREATED, Json(transaction)))
 }
