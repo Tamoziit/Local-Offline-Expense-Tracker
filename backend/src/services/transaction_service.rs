@@ -3,7 +3,7 @@ use uuid::Uuid;
 
 use crate::{
     db::DBClient,
-    dtos::transaction_dtos::NewTransactionDto,
+    dtos::transaction_dtos::{NewTransactionDto, TransactionDto},
     errors::ServiceError,
     models::transaction_model::{TransactionMode, TransactionStatus, TransactionType},
     services::{account_service::AccountExt, category_service::CategoryExt},
@@ -25,6 +25,8 @@ pub trait TransactionExt {
         transaction_date: NaiveDate,
         transaction_status: TransactionStatus,
     ) -> Result<NewTransactionDto, ServiceError>;
+
+    async fn get_all_transactions(&self) -> Result<Vec<TransactionDto>, ServiceError>;
 }
 
 impl TransactionExt for DBClient {
@@ -150,5 +152,35 @@ impl TransactionExt for DBClient {
         tx.commit().await?;
 
         Ok(transaction)
+    }
+
+    async fn get_all_transactions(&self) -> Result<Vec<TransactionDto>, ServiceError> {
+        let transactions = sqlx::query_as::<_, TransactionDto>(
+            r#"
+            SELECT
+                t.id,
+                t.title,
+                t.description,
+                c.name AS category,
+                t.transaction_type,
+                t.transaction_mode,
+                t.is_recurring,
+                fa.name AS from_account,
+                ta.name AS to_account,
+                t.amount,
+                t.transaction_date,
+                t.transaction_status,
+                t.created_at,
+                t.updated_at
+            FROM transactions t
+            LEFT JOIN categories c ON t.category_id =  c.id
+            LEFT JOIN accounts fa ON t.from_account_id = fa.id
+            LEFT JOIN accounts ta ON t.to_account_id = ta.id
+            "#,
+        )
+        .fetch_all(&self.pool)
+        .await?; // LEFT JOIN - to preserve transactions where category or acc ids are NULL
+
+        Ok(transactions)
     }
 }

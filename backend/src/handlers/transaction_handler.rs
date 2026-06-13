@@ -1,6 +1,11 @@
 use std::sync::Arc;
 
-use axum::{Extension, Json, Router, http::StatusCode, response::IntoResponse, routing::post};
+use axum::{
+    Extension, Json, Router,
+    http::StatusCode,
+    response::IntoResponse,
+    routing::{get, post},
+};
 use validator::Validate;
 
 use crate::{
@@ -11,7 +16,9 @@ use crate::{
 };
 
 pub fn routes() -> Router {
-    Router::new().route("/record", post(record_transaction))
+    Router::new()
+        .route("/record", post(record_transaction))
+        .route("/my-transactions", get(get_all_transactions))
 }
 
 pub async fn record_transaction(
@@ -40,4 +47,16 @@ pub async fn record_transaction(
         .map_err(HttpError::from)?;
 
     Ok((StatusCode::CREATED, Json(transaction)))
+}
+
+pub async fn get_all_transactions(
+    Extension(app_state): Extension<Arc<AppState>>,
+) -> Result<impl IntoResponse, HttpError> {
+    let transactions = app_state
+        .db_client
+        .get_all_transactions()
+        .await
+        .map_err(HttpError::from)?;
+
+    Ok(Json(transactions))
 }

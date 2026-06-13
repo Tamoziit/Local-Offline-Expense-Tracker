@@ -42,3 +42,23 @@ pub struct NewTransactionDto {
     #[serde(rename = "updatedAt")]
     pub updated_at: DateTime<Utc>,
 }
+
+#[derive(Debug, Validate, Clone, Serialize, Deserialize, FromRow)]
+pub struct TransactionDto {
+    pub id: Uuid,
+    pub title: String,
+    pub description: Option<String>,
+    pub category: Option<String>,
+    pub transaction_type: TransactionType,
+    pub transaction_mode: TransactionMode,
+    pub is_recurring: bool,
+    pub from_account: Option<String>,
+    pub to_account: Option<String>,
+    pub amount: f64,
+    pub transaction_date: NaiveDate,
+    pub transaction_status: TransactionStatus,
+    #[serde(rename = "createdAt")]
+    pub created_at: DateTime<Utc>,
+    #[serde(rename = "updatedAt")]
+    pub updated_at: DateTime<Utc>,
+}
